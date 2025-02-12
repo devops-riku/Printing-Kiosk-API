@@ -21,6 +21,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # Set up Jinja2 templates for rendering HTML
 templates = Jinja2Templates(directory="templates")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+app.mount("/audio", StaticFiles(directory=UPLOAD_DIR), name="audio")
 
 # In-memory storage for file data
 file_data = {}
@@ -90,6 +91,7 @@ async def upload_file(file: UploadFile = File(...), background_tasks: Background
     }
 
     current_file_id = unique_id
+    print(file_data)
     return {
         "file_id": unique_id,
         "required_shredded_pages": required_shredded_pages,
