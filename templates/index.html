@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Processor</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+            background: #f8f9fa;
+        }
+        .progress-bar {
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        .progress {
+            height: 100%;
+            background: #007bff;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            background: #e9ecef;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            transition: background 0.3s ease;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn.cancel {
+            background: #dc3545;
+        }
+        .btn.cancel:hover {
+            background: #c82333;
+        }
+        .error {
+            color: #dc3545;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>File Processor</h1>
+        <div class="upload-area" id="dropZone">
+            <h3>Drag & Drop or Click to Upload</h3>
+            <p>Supported formats: PDF, DOCX</p>
+            <input type="file" id="fileInput" style="display: none" accept=".pdf,.docx">
+        </div>
+        <div class="progress-bar">
+            <div class="progress" id="progressBar"></div>
+        </div>
+        <div class="status" id="status">No file being processed</div>
+        <div>
+            <button class="btn" id="forcePrintBtn" style="display: none">Force Print</button>
+            <button class="btn cancel" id="cancelBtn" style="display: none">Cancel</button>
+        </div>
+        <div class="error" id="error"></div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const progressBar = document.getElementById('progressBar');
+        const status = document.getElementById('status');
+        const error = document.getElementById('error');
+        const forcePrintBtn = document.getElementById('forcePrintBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+
+        let currentFileId = null;
+
+        dropZone.onclick = () => fileInput.click();
+
+        dropZone.ondragover = (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#007bff';
+        };
+
+        dropZone.ondragleave = () => {
+            dropZone.style.borderColor = '#ccc';
+        };
+
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#ccc';
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        };
+
+        fileInput.onchange = () => handleFile(fileInput.files[0]);
+
+        async function handleFile(file) {
+            if (!file) return;
+
+            if (!file.name.endsWith('.pdf') && !file.name.endsWith('.docx')) {
+                error.textContent = 'Only PDF and DOCX files are supported';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                error.textContent = '';
+                progressBar.style.width = '50%';
+
+                const response = await fetch('/upload/', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    error.textContent = data.error;
+                    progressBar.style.width = '0%';
+                    return;
+                }
+
+                currentFileId = data.file_id;
+                progressBar.style.width = '100%';
+                status.textContent = `Processing: ${file.name}`;
+                forcePrintBtn.style.display = 'inline-block';
+                cancelBtn.style.display = 'inline-block';
+
+                startPolling();
+            } catch (err) {
+                error.textContent = 'Upload failed. Please try again.';
+                progressBar.style.width = '0%';
+            }
+        }
+
+        async function startPolling() {
+            const pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/check_for_file');
+                    const data = await response.json();
+
+                    if (data.file_id) {
+                        const progress = (data.shredded_pages / data.required_shredded_pages) * 100;
+                        status.textContent = `Shredded pages: ${data.shredded_pages}/${data.required_shredded_pages}`;
+                        progressBar.style.width = `${progress}%`;
+                    } else {
+                        clearInterval(pollInterval);
+                        resetUI();
+                    }
+                } catch (err) {
+                    error.textContent = 'Error checking file status';
+                }
+            }, 1000);
+        }
+
+        forcePrintBtn.onclick = async () => {
+            if (!currentFileId) return;
+
+            const formData = new FormData();
+            formData.append('file_id', currentFileId);
+
+            try {
+                await fetch('/force_print/', {
+                    method: 'POST',
+                    body: formData
+                });
+                status.textContent = 'Force print initiated';
+            } catch (err) {
+                error.textContent = 'Force print failed';
+            }
+        };
+
+        cancelBtn.onclick = async () => {
+            if (!currentFileId) return;
+
+            try {
+                await fetch(`/cancel_print/${currentFileId}`);
+                resetUI();
+            } catch (err) {
+                error.textContent = 'Cancel failed';
+            }
+        };
+
+        function resetUI() {
+            currentFileId = null;
+            progressBar.style.width = '0%';
+            status.textContent = 'No file being processed';
+            forcePrintBtn.style.display = 'none';
+            cancelBtn.style.display = 'none';
+            error.textContent = '';
+        }
+    </script>
+</body>
+</html>
