@@ -72,4 +72,11 @@ def update_shredded_pages(file_id, shredded_pages):
 
 
 def clear_current_process():
-    urequests.get(SERVER_URL + '/clear-current-file')
+    response = urequests.get(SERVER_URL + '/clear-current-file')
+    relay.value(1)
+
+
+def get_current_file_id():
+    response = urequests.get(SERVER_URL + '/current_file_id')
+    id = response.json()
+    return id
