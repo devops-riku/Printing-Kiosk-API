@@ -136,36 +136,17 @@
         <hr>
         <h2 style="margin-bottom: 30px">Scan to Get Started</h2>
         <div class="qr-code">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ host }}/upload-file" alt="NCF QR Code">
+            <!-- <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ host }}/upload-file" alt="NCF QR Code"> -->
         </div>
         <hr>
+        <div style="background-color: rgba(0,0,0,0.3); width: 100%; color: white; padding: 10px; margin-top: 50px;">
+            <h1>Tap anywhere to start</h1>
+        </div>
     </div>
 
     <script>
-        // Apply fade-in effect when page loads
-        document.addEventListener("DOMContentLoaded", function() {
-            document.body.classList.add("loaded");
-
-            // Check for uploaded file every 5 seconds
-            setInterval(checkForFile, 1000);
-        });
-
-        function checkForFile() {
-            fetch('/check_for_file')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.file_id) {
-                        // Play audio when file is detected
-                        let audio = new Audio('/static/mp3/Please Wait.ogg'); // Change to your audio file
-                        audio.play().catch(error => console.log("Audio play blocked:", error));
-
-                        // Delay redirection by 3 seconds (3000ms)
-                        setTimeout(() => {
-                            window.location.href = '/progress';
-                        }, 4000);
-                    }
-                })
-            .catch(error => console.error('Error checking for file:', error));
+        function redirectPage() {
+            window.location.href = "/scan-to-upload"; // Change URL to your target page
         }
 
         window.onload = function() {

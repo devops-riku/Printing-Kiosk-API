@@ -19,6 +19,10 @@
             align-items: center;
             padding: 20px;
             flex-direction: column;
+            background-image: url('static/img/bg-img.jpg');
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            background-position: center;
         }
 
         .container {
@@ -41,6 +45,7 @@
             color: black;
             font-weight: bold;
             text-align: center;
+            overflow: auto;
         }
 
         .button-container {
@@ -84,6 +89,23 @@
 
         .red-button:hover {
             background-color: #c9302c;
+        }
+
+        .green-button {
+            background-color: #008000;
+            color: white;
+            border: none;
+            width: 180px;
+            height: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .green-button:hover {
+            background-color: #66C266;
         }
 
         .progress-container {
@@ -168,13 +190,16 @@
     <div class="container">
         <div>
             <h3>PREVIEW</h3>
-            <div class="preview-box">Document Preview</div>
+            <!-- <div class="preview-box">Document Preview</div> -->
+            <!-- <embed id="pdfPreview" class="preview-box" src="/uploads/{{ current_file_id }}.pdf" type="application/pdf" width="100%" height="100%" /> -->
+            <canvas class="preview-box" id="pdfCanvas"></canvas>
         </div>
-
+        <!-- <span source="/uploads/{{ current_file_id }}.pdf"></span> -->
         <div class="button-container">
             <p class="completed-message" id="completedMessage">✔ Shred Completed</p>
-            <button class="yellow-button" id="printBtn" disabled>Print</button>
+            <button class="yellow-button" id="printBtn" disabled onclick="printPDF('/uploads/{{ current_file_id }}.pdf')">Print</button>
             <button class="red-button" id="cancelBtn">Cancel</button>
+            <a href="/clear-current-file"><button class="green-button" id="homeBtn">Home</button></a>
         </div>
 
         <div class="progress-container">
@@ -225,13 +250,14 @@
             <div class="progress-bar" id="progressBar">
                 <span id="progressText">0%</span>
             </div>
-            <img src="https://cdn-icons-png.flaticon.com/512/4596/4596686.png" class="cat-icon" id="catIcon" alt="Cat">
+            <img src="static/img/tiger.png" class="cat-icon" id="catIcon" alt="Cat">
         </div>
 
         <p class="shredded-count" id="status">Shredded Pages: 0/<span id="totalPages">?</span></p>
     </div>
 
-        <script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
         const progressBar = document.getElementById('progressBar');
         const progressText = document.getElementById('progressText');
         const status = document.getElementById('status');
@@ -257,8 +283,11 @@
 
                         if (data.shredded_pages >= data.required_shredded_pages) {
                             printBtn.disabled = false;
+                            cancelBtn.style.display = "None";
                             completedMessage.style.display = 'block';
                             clearInterval(pollInterval);
+                            let readyPrint = new Audio('/static/mp3/Tap to Print.ogg'); // Change to your audio file
+                            readyPrint.play().catch(error => console.log("Audio play blocked:", error));
                         }
                     } else {
                         clearInterval(pollInterval);
@@ -294,7 +323,42 @@
         printBtn.addEventListener('click', () => {
             // Implement print functionality here
             console.log('Print button clicked');
+            let audio = new Audio('/static/mp3/Now Printing.ogg'); // Change to your audio file
+            audio.play().catch(error => console.log("Audio play blocked:", error));
         });
+
+        document.addEventListener("DOMContentLoaded", function () {
+        const pdfUrl = "/uploads/{{ current_file_id }}.pdf"; // Replace with your actual PDF file path
+
+            pdfjsLib.getDocument(pdfUrl).promise.then(pdf => {
+                pdf.getPage(1).then(page => {
+                    const scale = 1.5;
+                    const viewport = page.getViewport({ scale });
+                    const canvas = document.getElementById("pdfCanvas");
+                    const context = canvas.getContext("2d");
+
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: viewport
+                    };
+
+                    page.render(renderContext);
+                });
+            }).catch(error => {
+                console.error("Error loading PDF:", error);
+            });
+        });
+
+        function printPDF(pdfUrl) {
+            let printWindow = window.open(pdfUrl, "_blank");
+            printWindow.onload = function () {
+                printWindow.focus();
+                printWindow.print();
+            };
+        }
     </script>
 </body>
 </html>

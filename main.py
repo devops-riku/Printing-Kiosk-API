@@ -14,7 +14,7 @@ from starlette.staticfiles import StaticFiles
 app = FastAPI()
 
 # Define the server URL
-SERVER_URL = "http://0.0.0.0:8000"
+SERVER_URL = "http://192.168.254.133:8000"
 
 # Upload directory
 UPLOAD_DIR = "uploads"
@@ -24,12 +24,10 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # Set up Jinja2 templates for rendering HTML
 templates = Jinja2Templates(directory="templates")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-app.mount("/audio", StaticFiles(directory=UPLOAD_DIR), name="audio")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 file_data = {}
 current_file_id = None
-print_button = False
 
 
 class ShreddedPagesUpdate(BaseModel):
@@ -49,6 +47,18 @@ def count_pdf_pages(file_path):
         return 0
 
 
+@app.get('/', response_class=HTMLResponse)
+async def home(request: Request):
+    """Render the home page with the current file's progress."""
+    global current_file_id
+    shutil.rmtree(UPLOAD_DIR)
+    os.makedirs(UPLOAD_DIR)
+
+    file_data.clear()
+    current_file_id = None
+    return templates.TemplateResponse("landing.html", {"request": request})
+
+
 @app.get("/scan-to-upload")
 async def scan_qr_code(request: Request):
     """Redirect to the QR code scanning page."""
@@ -59,6 +69,7 @@ async def scan_qr_code(request: Request):
 async def upload_page(request: Request):
     """Render the file upload page."""
     return templates.TemplateResponse("upload-file.html", {"request": request, "files": file_data})
+
 
 @app.get("/progress")
 async def progress(request: Request):
@@ -140,8 +151,8 @@ async def update_shredded_pages(file_id: str, update: ShreddedPagesUpdate):
     return {"message": "Updated shredded pages"}
 
 
-@app.get("/cancel_print/{file_id}")
-async def cancel_print(file_id: str):
+@app.get("/cancel_print")
+async def cancel_print():
     """User cancels print job via web UI and deletes the uploaded file."""
     global current_file_id
     shutil.rmtree(UPLOAD_DIR)
@@ -153,12 +164,17 @@ async def cancel_print(file_id: str):
     return RedirectResponse(url="/", status_code=303)
 
 
-@app.post('/print_button', response_class=HTMLResponse)
-async def print_button():
-    """Update the print button status."""
-    global print_button
-    print_button = True
-    return {'print_now': print_button}
+@app.get("/clear-current-file")
+async def clear_current_file():
+    global current_file_id
+    shutil.rmtree(UPLOAD_DIR)
+    os.makedirs(UPLOAD_DIR)
+
+    file_data.clear()
+    current_file_id = None
+    return RedirectResponse('/', status_code=302)
+
+
 
 
 if __name__ == '__main__':
