@@ -167,12 +167,19 @@ async def cancel_print():
 @app.get("/clear-current-file")
 async def clear_current_file():
     global current_file_id
-    shutil.rmtree(UPLOAD_DIR)
-    os.makedirs(UPLOAD_DIR)
 
-    file_data.clear()
     current_file_id = None
-    return RedirectResponse('/', status_code=302)
+    return {'message': 'Current file cleared successfully'}
+
+
+@app.get('/success-page')
+async def success_page(request: Request):
+    return templates.TemplateResponse("success.html", {"request": request})
+
+
+@app.get("/current_file_id")
+async def get_current_file_id():
+    return {"current_file_id": current_file_id}
 
 
 
