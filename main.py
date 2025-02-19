@@ -1,13 +1,11 @@
 import os
+import shutil
 import uuid
 
 import uvicorn
-import win32print
-import win32api
-
 from PyPDF2 import PdfReader
 from docx2pdf import convert
-from fastapi import FastAPI, File, UploadFile, Request, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, File, UploadFile, Request, HTTPException, BackgroundTasks
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -20,23 +18,27 @@ SERVER_URL = "http://0.0.0.0:8000"
 
 # Upload directory
 UPLOAD_DIR = "uploads"
+STATIC_DIR = "static"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # Set up Jinja2 templates for rendering HTML
 templates = Jinja2Templates(directory="templates")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.mount("/audio", StaticFiles(directory=UPLOAD_DIR), name="audio")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# In-memory storage for file data
 file_data = {}
-current_file_id = None  # Track the current file being processed
+current_file_id = None
+print_button = False
 
 
 class ShreddedPagesUpdate(BaseModel):
     shredded_pages: int
 
+
 class PrinterSelection(BaseModel):
     printer: str
+
 
 def count_pdf_pages(file_path):
     """Count pages in a PDF file."""
@@ -47,29 +49,21 @@ def count_pdf_pages(file_path):
         return 0
 
 
-def get_printers():
-    printers = win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS)
-    return printers
+@app.get("/scan-to-upload")
+async def scan_qr_code(request: Request):
+    """Redirect to the QR code scanning page."""
+    return templates.TemplateResponse("scan-to-upload.html", {"request": request, "host": SERVER_URL})
 
 
-def print_file(file_path, printer_name=None):
-    """Print a file using the specified printer or the default printer."""
-    if printer_name is None:
-        printer_name = win32print.GetDefaultPrinter()
-
-    try:
-        win32api.ShellExecute(0, "print", file_path, f'/d:"{printer_name}"', ".", 0)
-        return True
-    except Exception as e:
-        print(f"Error printing file: {e}")
-        return False
-
-
-@app.get("/", response_class=HTMLResponse)
+@app.get("/upload-file", response_class=HTMLResponse)
 async def upload_page(request: Request):
     """Render the file upload page."""
-    return templates.TemplateResponse("index.html", {"request": request, "files": file_data,
-                                                     "printers": get_printers()})
+    return templates.TemplateResponse("upload-file.html", {"request": request, "files": file_data})
+
+@app.get("/progress")
+async def progress(request: Request):
+    """Render the progress page with the current file's progress."""
+    return templates.TemplateResponse("progress.html", {"request": request, "current_file_id": current_file_id})
 
 
 @app.post("/upload/")
@@ -111,7 +105,6 @@ async def upload_file(file: UploadFile = File(...), background_tasks: Background
     }
 
     current_file_id = unique_id
-    print(file_data)
     return {
         "file_id": unique_id,
         "required_shredded_pages": required_shredded_pages,
@@ -149,41 +142,24 @@ async def update_shredded_pages(file_id: str, update: ShreddedPagesUpdate):
 
 @app.get("/cancel_print/{file_id}")
 async def cancel_print(file_id: str):
-    """User cancels print job via web UI."""
+    """User cancels print job via web UI and deletes the uploaded file."""
     global current_file_id
-    if file_id == current_file_id:
-        current_file_id = None
+    shutil.rmtree(UPLOAD_DIR)
+    os.makedirs(UPLOAD_DIR)
+
+    file_data.clear()
+    current_file_id = None
+
     return RedirectResponse(url="/", status_code=303)
 
 
-@app.get("/printers")
-async def list_printers():
-    """Get a list of available printers."""
-    return {"printers": get_printers()}
-
-
-@app.post("/print/{file_id}")
-async def print_document(file_id: str):
-    """Print the document using the specified printer or the default printer."""
-    if file_id not in file_data:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    file_info = file_data[file_id]
-    file_path = file_info["file_path"]
-
-    if print_file(file_path):
-        return {"message": "File sent to printer successfully"}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to print file")
-
-
-@app.post('/selected-printer')
-async def selected_printer(printer_selection: PrinterSelection):
-    """Set the selected printer."""
-    print(printer_selection.printer)
-    return {"message": "Printer selected successfully"}
+@app.post('/print_button', response_class=HTMLResponse)
+async def print_button():
+    """Update the print button status."""
+    global print_button
+    print_button = True
+    return {'print_now': print_button}
 
 
 if __name__ == '__main__':
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
