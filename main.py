@@ -5,16 +5,19 @@ import uuid
 import uvicorn
 from PyPDF2 import PdfReader
 from docx2pdf import convert
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException, BackgroundTasks
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.staticfiles import StaticFiles
 
+load_dotenv()
+
 app = FastAPI()
 
 # Define the server URL
-SERVER_URL = "http://192.168.254.133:8000"
+SERVER_URL = os.getenv('HOST')
 
 # Upload directory
 UPLOAD_DIR = "uploads"
@@ -180,8 +183,6 @@ async def success_page(request: Request):
 @app.get("/current_file_id")
 async def get_current_file_id():
     return {"current_file_id": current_file_id}
-
-
 
 
 if __name__ == '__main__':
