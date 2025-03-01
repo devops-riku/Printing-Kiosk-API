@@ -256,7 +256,7 @@ uploadButton.addEventListener("click", async function () {
         const data = await response.json();
 
         if (data.file_id) {
-            alert("File uploaded successfully! File ID: " + data.file_id);
+            window.location.href = '/success-page';
             // You can add more logic here to handle the successful upload
         } else if (data.error) {
             alert("Error uploading file: " + data.error);
